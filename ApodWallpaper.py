@@ -5,11 +5,11 @@ __author__ = 'ghoti'
 #browse previous apod images
 #save image locally
 #cross platform?
-
-import urllib2
 import BeautifulSoup
-import tempfile
 import ctypes
+import datetime
+import tempfile
+import urllib2
 import wx
 
 class Apod(wx.App):
@@ -26,7 +26,7 @@ class Apod(wx.App):
 
         #this is the max size of the preview image to be shown, we will scale anything
         #bigger than this down to this size
-        self.previewsize = 640
+        self.previewsize = 600
 
         self.CreateWidgets()
         self.frame.Center()
@@ -36,33 +36,45 @@ class Apod(wx.App):
         """
         Add our buttons, image handler, and layout design here.  We initially just show a blank image before we download one
         """
-        instructions = 'Press \'Download\' to preview the latest APOD'
-        img = wx.EmptyImage(640, 500)
-        self.imageCtrl = wx.StaticBitmap(self.panel, wx.ID_ANY, wx.BitmapFromImage(img))
+        instructions = 'Press \'Download\' to preview the latest (today\'s) Astronomy Picture of the Day.  http://apod.nasa.gov/apod/'
+        picdate = ''
+        img = wx.EmptyImage(600, 640)
+        self.imageCtrl = wx.StaticBitmap(self.panel, wx.ALIGN_CENTER, wx.BitmapFromImage(img))
+        self.picdateCtrl = wx.StaticText(self.panel, label=picdate)
 
         instructLbl = wx.StaticText(self.panel, label=instructions)
+        
         getButton = wx.Button(self.panel, label='Download/Preview')
         getButton.Bind(wx.EVT_BUTTON, self.download)
-        setButton = wx.Button(self.panel, label='Set as Wallpaper')
-        setButton.Bind(wx.EVT_BUTTON, self.set)
+        self.setButton = wx.Button(self.panel, label='Set as Wallpaper')
+        self.setButton.Bind(wx.EVT_BUTTON, self.set)
         quitButton = wx.Button(self.panel, label='Exit')
         quitButton.Bind(wx.EVT_BUTTON, self.quit)
+        #previousButton = wx.Button()
+        #nextButton = wx.Button()
 
         self.mainSizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer2 = wx.BoxSizer(wx.HORIZONTAL)
 
         self.mainSizer.Add(wx.StaticLine(self.panel, wx.ID_ANY), 0, wx.ALL|wx.EXPAND, 5)
-        self.mainSizer.Add(instructLbl, 0, wx.ALL, 5)
+        self.mainSizer.Add(instructLbl, 0, wx.ALIGN_CENTRE, 5)
+        self.mainSizer.Add(self.picdateCtrl, 0, wx.ALIGN_CENTER, 5)
         self.mainSizer.Add(self.imageCtrl, 0, wx.ALL, 5)
+
+#        self.sizer2.Add(previousButton, 0, wx.ALL, 5)
+#        self.sizer2.Add(nextButton, 0, wx.ALL, 5)
+#        self.mainSizer.Add(self.sizer2, 0, wx.ALIGN_CENTRE, 5)
+
         self.sizer.Add(getButton, 0, wx.ALL, 5)
-        self.sizer.Add(setButton, 0, wx.ALL, 5)
+        self.sizer.Add(self.setButton, 0, wx.ALL, 5)
         self.sizer.Add(quitButton, 0, wx.ALL, 5)
         self.mainSizer.Add(self.sizer, 0, wx.ALL, 5)
         self.mainSizer.Add(wx.StaticLine(self.panel, wx.ID_ANY), 0, wx.ALL|wx.EXPAND, 5)
 
         self.panel.SetSizer(self.mainSizer)
         self.mainSizer.Fit(self.frame)
-
+        self.setButton.Disable()
         self.panel.Layout()
     def download(self, e):
         """
@@ -116,19 +128,17 @@ class Apod(wx.App):
         #enable the set button if we downloaded anything.
         self.gottenpic = True
         self.image = img
+        self.setButton.Enable()
         self.panel.Refresh()
 
     def set(self, e):
         """
         set the wallpaper with our image.
         """
-        if self.gottenpic:
-            SPI_SETDESKWALLPAPER = 20
-            #fixme.  does not stick on some windows.  requires registry editing methinks.
-            #ctypes.windll.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, '' , 0)
-            ctypes.windll.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, self.image , 0)
-        else:
-            wx.MessageBox('No image to set as background!  Download one first dummy!', 'Error!', wx.OK | wx.ICON_ERROR)
+        SPI_SETDESKWALLPAPER = 20
+        #fixme.  does not stick on some windows.  requires registry editing methinks.
+        #ctypes.windll.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, '' , 0)
+        ctypes.windll.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, self.image , 0)
 
     def quit(self, e):
         """
