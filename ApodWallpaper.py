@@ -2,7 +2,7 @@ __author__ = 'ghoti'
 #TODO (in order of importance)
 #add linkback to apod
 #add copyright info if present
-#browse previous apod images
+#browse previous apod images --working mostly
 #save image locally
 #cross platform?
 import BeautifulSoup
@@ -18,6 +18,7 @@ class Apod(wx.App):
     """
     def __init__(self, redirect=False):
         self.gottenpic = False
+        self.picdate = datetime.datetime.today().strftime("%y%m%d")
         wx.App.__init__(self, redirect)
         #we've disabled the maximize button here, it makes things unpretty
         self.frame = wx.Frame(None, title="Apod Wallpaper Grabber",
@@ -26,7 +27,7 @@ class Apod(wx.App):
 
         #this is the max size of the preview image to be shown, we will scale anything
         #bigger than this down to this size
-        self.previewsize = 600
+        self.previewsize = 480
 
         self.CreateWidgets()
         self.frame.Center()
@@ -36,11 +37,11 @@ class Apod(wx.App):
         """
         Add our buttons, image handler, and layout design here.  We initially just show a blank image before we download one
         """
-        instructions = 'Press \'Download\' to preview the latest (today\'s) Astronomy Picture of the Day.  http://apod.nasa.gov/apod/'
+        instructions = 'Press \'Download\' to preview the latest (today\'s) Astronomy Picture of the Day'
         picdate = ''
-        img = wx.EmptyImage(600, 640)
-        self.imageCtrl = wx.StaticBitmap(self.panel, wx.ALIGN_CENTER, wx.BitmapFromImage(img))
-        self.picdateCtrl = wx.StaticText(self.panel, label=picdate)
+        img = wx.EmptyImage(self.previewsize, self.previewsize)
+        self.imageCtrl = wx.StaticBitmap(self.panel, wx.ID_ANY, wx.BitmapFromImage(img))
+        self.picdateCtrl = wx.StaticText(self.panel, wx.ID_ANY, label=picdate)
 
         instructLbl = wx.StaticText(self.panel, label=instructions)
         
@@ -50,8 +51,10 @@ class Apod(wx.App):
         self.setButton.Bind(wx.EVT_BUTTON, self.set)
         quitButton = wx.Button(self.panel, label='Exit')
         quitButton.Bind(wx.EVT_BUTTON, self.quit)
-        #previousButton = wx.Button()
-        #nextButton = wx.Button()
+        self.previousButton = wx.Button(self.panel, label='Previous')
+        self.previousButton.Bind(wx.EVT_BUTTON, self.previewprev)
+        self.nextButton = wx.Button(self.panel, label='Next')
+        self.nextButton.Bind(wx.EVT_BUTTON, self.previewnext)
 
         self.mainSizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -59,22 +62,23 @@ class Apod(wx.App):
 
         self.mainSizer.Add(wx.StaticLine(self.panel, wx.ID_ANY), 0, wx.ALL|wx.EXPAND, 5)
         self.mainSizer.Add(instructLbl, 0, wx.ALIGN_CENTRE, 5)
-        self.mainSizer.Add(self.picdateCtrl, 0, wx.ALIGN_CENTER, 5)
-        self.mainSizer.Add(self.imageCtrl, 0, wx.ALL, 5)
-
-#        self.sizer2.Add(previousButton, 0, wx.ALL, 5)
-#        self.sizer2.Add(nextButton, 0, wx.ALL, 5)
-#        self.mainSizer.Add(self.sizer2, 0, wx.ALIGN_CENTRE, 5)
+        self.mainSizer.Add(self.imageCtrl, 0, wx.ALL|wx.EXPAND, 5)
+        self.mainSizer.Add(self.picdateCtrl, 0, wx.ALIGN_LEFT, 5)
+        self.mainSizer.Add(wx.StaticLine(self.panel, wx.ID_ANY), 0, wx.ALL|wx.EXPAND, 5)
 
         self.sizer.Add(getButton, 0, wx.ALL, 5)
         self.sizer.Add(self.setButton, 0, wx.ALL, 5)
         self.sizer.Add(quitButton, 0, wx.ALL, 5)
+        self.sizer.Add(self.previousButton, 0, wx.ALL|wx.ALIGN_RIGHT, 5)
+        self.sizer.Add(self.nextButton, 0, wx.ALL|wx.ALIGN_RIGHT, 5)
         self.mainSizer.Add(self.sizer, 0, wx.ALL, 5)
         self.mainSizer.Add(wx.StaticLine(self.panel, wx.ID_ANY), 0, wx.ALL|wx.EXPAND, 5)
 
         self.panel.SetSizer(self.mainSizer)
         self.mainSizer.Fit(self.frame)
         self.setButton.Disable()
+        self.nextButton.Disable()
+        self.previousButton.Disable()
         self.panel.Layout()
     def download(self, e):
         """
@@ -82,8 +86,8 @@ class Apod(wx.App):
         """
         url = 'http://apod.nasa.gov/apod/'
         try:
-            page = urllib2.urlopen(url).read()
-        except urllib2.HTTPError:
+            page = urllib2.urlopen(url + 'ap' + self.picdate + '.html').read()
+        except urllib2.HTTPError, e:
             wx.MessageBox('There was an error in downloading the image from APOD', 'Error!', wx.OK | wx.ICON_ERROR)
             return
         #this saved me from regex hell
@@ -91,7 +95,6 @@ class Apod(wx.App):
         pic = picsoup.findAll('img')[0]
         #fixme.  if the url ever changes, or anything odd pops up, this will not work
         picurl = url + str(pic)[10:].split(' ')[0][:-1]
-
         try:
             #fixme.  opening and closing 2 files for the same data is stupid.
             img = urllib2.urlopen(picurl).read()
@@ -122,14 +125,38 @@ class Apod(wx.App):
         else:
             NewH = self.previewsize
             NewW = self.previewsize * W / H
-        newpic = newpic.Scale(NewW, NewH)
+        newpic = newpic.Scale(width=NewW, height=NewH)
+        #self.imageCtrl.SetSize((NewW, NewH))
+        #self.imageCtrl.SetSize(self.previewsize, self.previewsize)
 
         self.imageCtrl.SetBitmap(wx.BitmapFromImage(newpic))
         #enable the set button if we downloaded anything.
         self.gottenpic = True
         self.image = img
+        self.picdateCtrl.SetLabel(datetime.datetime.strptime(self.picdate, "%y%m%d").strftime("%A, %B %d, %Y"))
         self.setButton.Enable()
+        self.previousButton.Enable()
+        if datetime.datetime.strptime(self.picdate, "%y%m%d").date() >= datetime.date.today():
+            self.nextButton.Disable()
+        else:
+            self.nextButton.Enable()
         self.panel.Refresh()
+
+    def previewnext(self, img):
+        '''
+        Preview the next day's picture
+        '''
+        newdate = datetime.datetime.strptime(self.picdate,"%y%m%d") + datetime.timedelta(days=1)
+        self.picdate = newdate.strftime("%y%m%d")
+        self.download(self)
+
+    def previewprev(self, img):
+        '''
+        preview the next day's picture
+        '''
+        newdate = datetime.datetime.strptime(self.picdate,"%y%m%d") + datetime.timedelta(days=-1)
+        self.picdate = newdate.strftime("%y%m%d")
+        self.download(self)
 
     def set(self, e):
         """
